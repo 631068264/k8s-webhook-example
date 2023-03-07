@@ -1,0 +1,37 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: customwebhook-selfsigned-issuer
+  namespace: default
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: customwebhook-tls-secret
+spec:
+  duration: 8760h
+  renewBefore: 8000h
+  commonName: customwebhook.default
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 2048
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+  dnsNames:
+    - customwebhook
+    - customwebhook.default
+    - customwebhook.default.svc
+    - host.docker.internal
+#  ipAddresses:
+#    - 192.168.1.10 # change it to your IP addresses
+  issuerRef:
+    kind: Issuer
+    name: customwebhook-selfsigned-issuer
+  secretName: customwebhook-tls-secret
+

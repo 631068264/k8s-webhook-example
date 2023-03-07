@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: customwebhook
+  name: customwebhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: customwebhook
+  template:
+    metadata:
+      labels:
+        app: customwebhook
+    spec:
+      containers:
+        - image: zengxu/customwebhook-validating-admission-webhook:v0
+          env:
+            - name: CERT_DIR
+              value: "/etc/customwebhook-webhook/certs"
+          name: customwebhook
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /etc/customwebhook-webhook/certs/
+              name: tls-cert
+      volumes:
+        - name: tls-cert
+          secret:
+            secretName: customwebhook-tls-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: customwebhook
+  name: customwebhook
+spec:
+  ports:
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: 8000
+  selector:
+    app: customwebhook
+  type: ClusterIP
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: customwebhook
+  annotations:
+    cert-manager.io/inject-ca-from: default/customwebhook-tls-secret
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      caBundle: ""
+      service:
+        name: customwebhook
+        namespace: default
+        port: 443
+        path: /validate
+    failurePolicy: Fail
+    matchPolicy: Exact
+    name: customwebhook.zeng.dev
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+        resources:
+          - pods
+        scope: '*'
+    objectSelector:
+      matchExpressions:
+        - key: app
+          operator: NotIn
+          values:
+            - customwebhook
+    sideEffects: None
+    timeoutSeconds: 3

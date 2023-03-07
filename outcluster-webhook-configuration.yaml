@@ -1,0 +1,80 @@
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: customwebhook-outercluster
+  annotations:
+    cert-manager.io/inject-ca-from: default/customwebhook-tls-secret
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+#      caBundle: ""
+      # change the ipaddress to your machine ipaddress
+      url: 'https://host.docker.internal:8000/validate'
+    failurePolicy: Fail
+    matchPolicy: Exact
+    name: customwebhook.valid.outercluster
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - pods
+        scope: '*'
+    objectSelector:
+      matchExpressions:
+        - key: app
+          operator: NotIn
+          values:
+            - customwebhook
+    sideEffects: None
+    timeoutSeconds: 30
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: customwebhook-outercluster
+  annotations:
+    cert-manager.io/inject-ca-from: default/customwebhook-tls-secret
+webhooks:
+  - admissionReviewVersions: # admissionReviewVersions 请求的版本
+      - v1
+    clientConfig: # 客户端配置
+      #      caBundle: # ca证书
+      #      service: # 调用服务相关配置，这里是一个k8s的service，访问地址是<name>.<namespace>.svc:<port>/<path>
+      #        name: mutating-test
+      #        namespace: testing-tools
+      #        path: /mutation-deployment
+      #        port: 8000
+      url: 'https://host.docker.internal:8000/mutate'
+    failurePolicy: Fail # 调用失败策略，Ignore为忽略错误, failed表示admission会处理错误
+    matchPolicy: Exact
+    name: customwebhook.mutate.outercluster
+    namespaceSelector: {} # 命名空间过滤条件
+    objectSelector: # 对象过滤条件
+      matchExpressions:
+        - key: app
+          operator: NotIn
+          values:
+            - customwebhook
+    # reinvocationPolicy表示再调度策略，因为webhook本身没有顺序性，因此每个修改后可能又被其他webhook修改，所以提供
+    # 一个策略表示是否需要被多次调用，Never 表示只会调度一次，IfNeeded 表示资源被修改后会再调度这个webhook
+    reinvocationPolicy: Never
+    rules: # 规则
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - pods
+        scope: '*' # 匹配范围，"*" 匹配所有资源，但不包括子资源，"*/*" 匹配所有资源，包括子资源
+    sideEffects: None # 这个表示webhook是否存在副作用，主要针对 dryRun 的请求
+    timeoutSeconds: 30
